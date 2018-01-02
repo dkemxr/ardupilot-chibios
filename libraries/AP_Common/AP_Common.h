@@ -177,3 +177,27 @@ bool is_bounded_int32(int32_t value, int32_t lower_bound, int32_t upper_bound);
 #else
 #define SITL_printf(fmt, args ...)
 #endif
+
+/*
+macros for simple Linked List append and remove methods
+creation and deletion of the pointers should be handled at the user end
+*/
+#define LINKED_LIST_APPEND(TYPE, HEAD_PTR, NEW_ITEM_PTR) { \
+    (NEW_ITEM_PTR)->next = NULL; \
+    TYPE** insert_ptr = &(HEAD_PTR); \
+    while(*insert_ptr) { \
+        insert_ptr = &(*insert_ptr)->next; \
+    } \
+    *insert_ptr = (NEW_ITEM_PTR); \
+}
+
+#define LINKED_LIST_REMOVE(TYPE, HEAD_PTR, REMOVE_ITEM_PTR) { \
+    TYPE** remove_ptr = &(HEAD_PTR); \
+    while (*remove_ptr && *remove_ptr != (REMOVE_ITEM_PTR)) { \
+        remove_ptr = &(*remove_ptr)->next; \
+    } \
+    \
+    if (*remove_ptr) { \
+        *remove_ptr = (*remove_ptr)->next; \
+    } \
+}
