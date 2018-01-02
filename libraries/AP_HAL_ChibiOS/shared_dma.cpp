@@ -25,6 +25,21 @@ Shared_DMA::Shared_DMA(uint8_t _stream_id1,
     deallocate = _deallocate;
 }
 
+//remove any assigned deallocator or allocator
+void Shared_DMA::unregister()
+{
+    if (locks[stream_id1].obj == this) {
+        locks[stream_id1].deallocate();
+        locks[stream_id1].obj = nullptr;
+    }
+
+    if (locks[stream_id2].obj == this) {
+        locks[stream_id2].deallocate();
+        locks[stream_id2].obj = nullptr;
+    }
+    
+}
+
 // lock the DMA channels
 void Shared_DMA::lock(void)
 {

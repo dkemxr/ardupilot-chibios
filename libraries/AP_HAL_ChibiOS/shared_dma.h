@@ -32,7 +32,10 @@ public:
 
     // unlock call from an IRQ
     void unlock_from_IRQ(void);
-    
+
+    //should be called inside the destructor of Shared DMA participants
+    void unregister(void);
+
 private:
     dma_allocate_fn_t allocate;
     dma_allocate_fn_t deallocate;
