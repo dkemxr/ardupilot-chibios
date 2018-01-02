@@ -39,7 +39,7 @@ public:
     virtual AP_HAL::DigitalSource* channel(uint16_t n) = 0;
 
     /* Interrupt interface: */
-    virtual bool    attach_interrupt(uint8_t interrupt_num, AP_HAL::Proc p,
+    virtual bool attach_interrupt(uint8_t interrupt_num, AP_HAL::Thread* thread, EventTask* task,
             uint8_t mode) = 0;
 
     /* return true if USB cable is connected */

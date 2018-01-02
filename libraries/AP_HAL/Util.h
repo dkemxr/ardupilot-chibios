@@ -114,7 +114,14 @@ public:
     // allocate and free DMA-capable memory if possible. Otherwise return normal memory
     virtual void *dma_allocate(size_t size) { return malloc(size); }
     virtual void dma_free(void *ptr, size_t size) { return free(ptr); }
-    
+
+    //Thread, Periodic Thread and Timed Callback creation
+    virtual Thread* create_thread(const char *name, int policy, int prio, size_t stack_size, void* ctx) { return nullptr; }
+    virtual TimerTask* add_timer_task(Thread* thd, TaskProc task_func, uint32_t delay, bool repeat, void* ctx) { return nullptr; }
+    virtual void reschedule_timer_task(Thread* thd, TimerTask* timer_task, uint32_t delay) {}
+    virtual void remove_timer_task(Thread* thd, TimerTask* timer_task) {}
+    virtual EventTask *create_event_task(TaskProc task_func, void* ctx) { return nullptr; }
+    virtual void send_event(AP_HAL::Thread* thd, EventTask* event_task) {}
 protected:
     // we start soft_armed false, so that actuators don't send any
     // values until the vehicle code has fully started

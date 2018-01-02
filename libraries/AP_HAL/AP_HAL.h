@@ -15,6 +15,7 @@
 #include "RCInput.h"
 #include "RCOutput.h"
 #include "Scheduler.h"
+#include "Thread.h"
 #include "Semaphores.h"
 #include "Util.h"
 #include "OpticalFlow.h"

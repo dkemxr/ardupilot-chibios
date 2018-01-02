@@ -26,6 +26,9 @@ namespace AP_HAL {
     class RCInput;
     class RCOutput;
     class Scheduler;
+    struct TimerTask;
+    struct EventTask;
+    class Thread;
     class Semaphore;
     class OpticalFlow;
 
@@ -45,7 +48,8 @@ namespace AP_HAL {
        which allows us to encapculate a member function as a type
      */
     typedef void(*Proc)(void);
-    FUNCTOR_TYPEDEF(MemberProc, void);
+    FUNCTOR_TYPEDEF(MemberProc, void); 
+    FUNCTOR_TYPEDEF(TaskProc, void);
 
     /**
      * Global names for all of the existing SPI devices on all platforms.
