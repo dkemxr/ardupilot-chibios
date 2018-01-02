@@ -168,13 +168,14 @@ void ChibiOS::Thread::_run_trampoline(void* ctx)
 void ChibiOS::Thread::_run()
 {
     while (true) {
-        chSysLock();
-        uint64_t tnow_ticks = chVTGetSystemTimeX();
-        uint64_t ticks_to_next_timer_task = _get_ticks_to_timer_task(_timer_task_list_head, tnow_ticks);
+        //handle event tasks
         while(_event_task_list_head) {
             _event_task_list_head->task_func();
             _event_task_list_head = _event_task_list_head->next;
         }
+        chSysLock();
+        uint64_t tnow_ticks = chVTGetSystemTimeX();
+        uint64_t ticks_to_next_timer_task = _get_ticks_to_timer_task(_timer_task_list_head, tnow_ticks);
         if (ticks_to_next_timer_task == TIME_IMMEDIATE) {
             // Task is due - pop the task off the task list, run it, reschedule if task is auto-repeat
             TimerTask* next_timer_task = _timer_task_list_head;
