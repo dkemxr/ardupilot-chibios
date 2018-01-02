@@ -81,12 +81,14 @@ public:
 private:
     AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev;
     static AP_Radio_cc2500 *radio_instance;
-    static thread_t *_irq_handler_ctx;
-    static virtual_timer_t timeout_vt;
+    AP_HAL::Thread *_irq_handler_thd;
+    AP_HAL::TimerTask* trigger_timeout_event;
+    AP_HAL::EventTask* trigger_irq_radio_event;
+    AP_HAL::EventTask* trigger_bind_event;
 
-    static void irq_handler_thd(void* arg);
-    static void trigger_irq_radio_event(void);
-    static void trigger_timeout_event(void *arg);
+    void irq_timeout_trampoline();
+    void irq_handler_trampoline();
+    void bind_event_trampoline();
 
     void radio_init(void);
 

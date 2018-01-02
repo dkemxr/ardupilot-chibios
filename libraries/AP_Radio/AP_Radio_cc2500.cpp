@@ -21,11 +21,7 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-static THD_WORKING_AREA(_irq_handler_wa, 512);
-#define TIMEOUT_PRIORITY 250	//Right above timer thread
-#define EVT_TIMEOUT EVENT_MASK(0)
-#define EVT_IRQ EVENT_MASK(1)
-#define EVT_BIND EVENT_MASK(2)
+#define RADIO_THD_PRIORITY 250	//Right above timer thread
 #endif
 
 extern const AP_HAL::HAL& hal;
@@ -37,8 +33,6 @@ extern const AP_HAL::HAL& hal;
 // object instance for trampoline
 AP_Radio_cc2500 *AP_Radio_cc2500::radio_instance;
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-thread_t *AP_Radio_cc2500::_irq_handler_ctx;
-virtual_timer_t AP_Radio_cc2500::timeout_vt;
 uint32_t AP_Radio_cc2500::irq_time_us;
 #endif
 
@@ -59,15 +53,12 @@ AP_Radio_cc2500::AP_Radio_cc2500(AP_Radio &_radio) :
 bool AP_Radio_cc2500::init(void)
 {
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-    if(_irq_handler_ctx != nullptr) {
-        AP_HAL::panic("AP_Radio_cc2500: double instantiation of irq_handler\n");
+    if(_irq_handler_thd != nullptr) {
+        AP_HAL::panic("AP_Radio_cypress: double instantiation of irq_handler\n");
     }
-    chVTObjectInit(&timeout_vt);
-    _irq_handler_ctx = chThdCreateStatic(_irq_handler_wa,
-                     sizeof(_irq_handler_wa),
-                     TIMEOUT_PRIORITY,        /* Initial priority.    */
-                     irq_handler_thd,  /* Thread function.     */
-                     NULL);                     /* Thread parameter.    */
+    _irq_handler_thd = hal.util->create_thread("RADIO_IRQ", 0, RADIO_THD_PRIORITY, 512, NULL);
+    trigger_timeout_event = hal.util->add_timer_task(_irq_handler_thd, FUNCTOR_BIND_MEMBER(&AP_Radio_cc2500::irq_timeout_trampoline, void), TIME_INFINITE, false, this);
+    trigger_bind_event = hal.util->create_event_task(FUNCTOR_BIND_MEMBER(&AP_Radio_cc2500::bind_event_trampoline, void), this);
 #endif
     sem = hal.util->new_semaphore();    
     
@@ -289,7 +280,8 @@ void AP_Radio_cc2500::radio_init(void)
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
     stm32_gpiosetevent(CYRF_IRQ_INPUT, true, false, false, irq_radio_trampoline);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-    hal.gpio->attach_interrupt(HAL_GPIO_RADIO_IRQ, trigger_irq_radio_event, HAL_GPIO_INTERRUPT_RISING);
+    trigger_irq_radio_event = hal.util->create_event_task(FUNCTOR_BIND_MEMBER(&AP_Radio_cc2500::irq_handler_trampoline, void), this);
+    hal.gpio->attach_interrupt(HAL_GPIO_RADIO_IRQ, _irq_handler_thd, trigger_irq_radio_event, HAL_GPIO_INTERRUPT_RISING);
 #endif
 
     if (load_bind_info()) {
@@ -304,26 +296,37 @@ void AP_Radio_cc2500::radio_init(void)
         protocolState = STATE_BIND_TUNING;
     }
 
-    chVTSet(&timeout_vt, MS2ST(10), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 10000);
 }
 
-void AP_Radio_cc2500::trigger_irq_radio_event()
+
+void AP_Radio_cc2500::irq_handler_trampoline()
 {
-    //we are called from ISR context
-    chSysLockFromISR();
-    irq_time_us = AP_HAL::micros();
-    chEvtSignalI(_irq_handler_ctx, EVT_IRQ);
-    chSysUnlockFromISR();
+    cc2500.lock_bus();
+    if (protocolState == STATE_FCCTEST) {
+        hal.console->printf("IRQ FCC\n");
+    }
+    irq_handler();
+    cc2500.unlock_bus();
 }
 
-void AP_Radio_cc2500::trigger_timeout_event(void *arg)
+void AP_Radio_cc2500::irq_timeout_trampoline()
 {
-    (void)arg;
-    //we are called from ISR context
-    chSysLockFromISR();
-    chVTSetI(&timeout_vt, MS2ST(10), trigger_timeout_event, nullptr);
-    chEvtSignalI(_irq_handler_ctx, EVT_TIMEOUT);
-    chSysUnlockFromISR();
+    cc2500.lock_bus();
+    if (cc2500.ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST) & 0x80) {
+        irq_time_us = AP_HAL::micros();
+        irq_handler();
+    } else {
+        irq_timeout();
+    }
+    cc2500.unlock_bus();
+}
+
+void AP_Radio_cc2500::bind_event_trampoline()
+{
+    cc2500.lock_bus();
+    initTuneRx();
+    cc2500.lock_bus();
 }
 
 void AP_Radio_cc2500::start_recv_bind(void)
@@ -331,7 +334,7 @@ void AP_Radio_cc2500::start_recv_bind(void)
     protocolState = STATE_BIND_TUNING;
     chan_count = 0;
     packet_timer = AP_HAL::micros();
-    chEvtSignal(_irq_handler_ctx, EVT_BIND);
+    hal.util->send_event(_irq_handler_thd, trigger_bind_event);
     Debug(1,"Starting bind\n");
 }
 
@@ -471,7 +474,7 @@ void AP_Radio_cc2500::irq_handler(void)
             }
             chanskip = skip;
             packet_timer = irq_time_us;
-            chVTSet(&timeout_vt, MS2ST(10), trigger_timeout_event, nullptr);
+            hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 10000);
             
             packet3 = packet[3];
 
@@ -549,7 +552,7 @@ void AP_Radio_cc2500::irq_timeout(void)
             nextChannel(chanskip);
             // to keep the timeouts 1ms behind the expected time we
             // need to set the timeout to 9ms
-            chVTSet(&timeout_vt, MS2ST(9), trigger_timeout_event, nullptr);
+            hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 9000);
             lost++;
         }
         break;
@@ -573,40 +576,6 @@ void AP_Radio_cc2500::irq_timeout(void)
 
     default:
         break;
-    }
-}
-
-void AP_Radio_cc2500::irq_handler_thd(void *arg)
-{
-    (void)arg;
-    while(true) {
-        eventmask_t evt = chEvtWaitAny(ALL_EVENTS);
-
-        radio_instance->cc2500.lock_bus();
-        
-        switch(evt) {
-        case EVT_IRQ:
-            if (radio_instance->protocolState == STATE_FCCTEST) {
-                hal.console->printf("IRQ FCC\n");
-            }
-            radio_instance->irq_handler();
-            break;
-        case EVT_TIMEOUT:
-            if (radio_instance->cc2500.ReadReg(CC2500_3B_RXBYTES | CC2500_READ_BURST) & 0x80) {
-                irq_time_us = AP_HAL::micros();
-                radio_instance->irq_handler();
-            } else {
-                radio_instance->irq_timeout();
-            }
-            break;
-        case EVT_BIND:
-            radio_instance->initTuneRx();
-            break;
-        default:
-            break;
-        }
-
-        radio_instance->cc2500.unlock_bus();
     }
 }
 

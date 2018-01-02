@@ -24,10 +24,7 @@
    https://github.com/esden/superbitrf-firmware
  */
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-static THD_WORKING_AREA(_irq_handler_wa, 512);
-#define TIMEOUT_PRIORITY 250	//Right above timer thread
-#define EVT_TIMEOUT EVENT_MASK(0)
-#define EVT_IRQ EVENT_MASK(1)
+#define RADIO_THD_PRIORITY 250	//Right above timer thread
 #endif
 
 #ifndef CYRF_SPI_DEVICE
@@ -245,9 +242,7 @@ enum {
 
 // object instance for trampoline
 AP_Radio_cypress *AP_Radio_cypress::radio_instance;
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-thread_t *AP_Radio_cypress::_irq_handler_ctx;
-#endif
+
 /*
   constructor
  */
@@ -265,15 +260,11 @@ bool AP_Radio_cypress::init(void)
 {
     dev = hal.spi->get_device(CYRF_SPI_DEVICE);
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-    if(_irq_handler_ctx != nullptr) {
+    if(_irq_handler_thd != nullptr) {
         AP_HAL::panic("AP_Radio_cypress: double instantiation of irq_handler\n");
     }
-    chVTObjectInit(&timeout_vt);
-    _irq_handler_ctx = chThdCreateStatic(_irq_handler_wa,
-                     sizeof(_irq_handler_wa),
-                     TIMEOUT_PRIORITY,        /* Initial priority.    */
-                     irq_handler_thd,  /* Thread function.     */
-                     NULL);                     /* Thread parameter.    */
+    _irq_handler_thd = hal.util->create_thread("RADIO_IRQ", 0, RADIO_THD_PRIORITY, 512, NULL);
+    trigger_timeout_event = hal.util->add_timer_task(_irq_handler_thd, FUNCTOR_BIND_MEMBER(&AP_Radio_cypress::irq_timeout_trampoline, void), TIME_INFINITE, false, this);
 #endif
     load_bind_info();
 
@@ -648,7 +639,8 @@ void AP_Radio_cypress::radio_init(void)
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
     stm32_gpiosetevent(CYRF_IRQ_INPUT, true, false, false, irq_radio_trampoline);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-    hal.gpio->attach_interrupt(HAL_GPIO_RADIO_IRQ, trigger_irq_radio_event, HAL_GPIO_INTERRUPT_RISING);
+    trigger_irq_radio_event = hal.util->create_event_task(FUNCTOR_BIND_MEMBER(&AP_Radio_cypress::irq_handler_trampoline, void), this);
+    hal.gpio->attach_interrupt(HAL_GPIO_RADIO_IRQ, _irq_handler_thd, trigger_irq_radio_event, HAL_GPIO_INTERRUPT_RISING);
 #endif
 }
 
@@ -1016,7 +1008,7 @@ void AP_Radio_cypress::process_packet(const uint8_t *pkt, uint8_t len)
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
                     hrt_call_after(&wait_call, 1000, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-                    chVTSet(&timeout_vt, MS2ST(1), trigger_timeout_event, nullptr);
+                        hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 1000);
 #endif
                 }
             }
@@ -1052,7 +1044,7 @@ void AP_Radio_cypress::start_receive(void)
     hrt_call_after(&wait_call, dsm.receive_timeout_usec, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, US2ST(dsm.receive_timeout_usec), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, dsm.receive_timeout_usec);
 #endif
 }
 
@@ -1172,7 +1164,7 @@ void AP_Radio_cypress::irq_timeout(void)
         hrt_call_after(&wait_call, dsm.receive_timeout_usec, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, US2ST(dsm.receive_timeout_usec), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, dsm.receive_timeout_usec);
 #endif
         return;
     }
@@ -1228,38 +1220,14 @@ int AP_Radio_cypress::irq_timeout_trampoline(int irq, void *context)
     return 0;
 }
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-void AP_Radio_cypress::irq_handler_thd(void *arg)
+void AP_Radio_cypress::irq_handler_trampoline()
 {
-    (void)arg;
-    while(true) {
-        eventmask_t evt = chEvtWaitAny(ALL_EVENTS);
-        switch(evt) {
-            case EVT_IRQ:
-                radio_instance->irq_handler();
-                break;
-            case EVT_TIMEOUT:
-                radio_instance->irq_timeout();
-                break;
-            default: break;
-        }
-    }
+    irq_handler();
 }
 
-void AP_Radio_cypress::trigger_timeout_event(void *arg)
+void AP_Radio_cypress::irq_timeout_trampoline()
 {
-    (void)arg;
-    //we are called from ISR context
-    chSysLockFromISR();
-    chEvtSignalI(_irq_handler_ctx, EVT_TIMEOUT);
-    chSysUnlockFromISR();
-}
-
-void AP_Radio_cypress::trigger_irq_radio_event()
-{
-    //we are called from ISR context
-    chSysLockFromISR();
-    chEvtSignalI(_irq_handler_ctx, EVT_IRQ);
-    chSysUnlockFromISR();
+    irq_timeout();
 }
 #endif
 /*
@@ -1628,7 +1596,7 @@ void AP_Radio_cypress::send_telem_packet(void)
     hrt_call_after(&wait_call, 2000, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, US2ST(dsm.receive_timeout_usec), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event,dsm.receive_timeout_usec);
 #endif
 }
 
@@ -1691,7 +1659,7 @@ void AP_Radio_cypress::send_FCC_test_packet(void)
         hrt_call_after(&wait_call, 500000, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, MS2ST(500), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 500000);
 #endif
     } else {
         write_register(CYRF_XACT_CFG, CYRF_MODE_SYNTH_TX | CYRF_FRC_END);
@@ -1701,7 +1669,7 @@ void AP_Radio_cypress::send_FCC_test_packet(void)
         hrt_call_after(&wait_call, 10000, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, MS2ST(10), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 10000);
 #endif
     }
 #else
@@ -1712,7 +1680,7 @@ void AP_Radio_cypress::send_FCC_test_packet(void)
     hrt_call_after(&wait_call, 10000, (hrt_callout)irq_timeout_trampoline, nullptr);
 #elif CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     //Note: please review Frequency in chconf.h to ensure the range of wait
-    chVTSet(&timeout_vt, MS2ST(10), trigger_timeout_event, nullptr);
+    hal.util->reschedule_timer_task(_irq_handler_thd, trigger_timeout_event, 10000);
 #endif
 #endif
 }
