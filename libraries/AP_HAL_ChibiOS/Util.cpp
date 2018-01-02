@@ -35,5 +35,41 @@ ChibiUtil::safety_state ChibiUtil::safety_switch_state(void)
     return SAFETY_NONE;
 #endif
 }
-    
+
+AP_HAL::Thread *ChibiUtil::create_thread(const char *name, int policy, int priority, size_t stack_size, void* ctx)
+{
+    ChibiOS::Thread* new_thd = new ChibiOS::Thread;
+    new_thd->init(name, priority);
+    new_thd->start_thread(stack_size);
+    return (AP_HAL::Thread*)new_thd;
+}
+
+TimerTask *ChibiUtil::add_timer_task(AP_HAL::Thread* thd, TaskProc task_func, uint32_t delay, bool repeat, void* ctx)
+{
+    return ((ChibiOS::Thread*)thd)->add_timer_task(task_func, delay, repeat, ctx);
+}
+
+void ChibiUtil::reschedule_timer_task(AP_HAL::Thread* thd, TimerTask* timer_task, uint32_t delay)
+{
+    ((ChibiOS::Thread*)thd)->reschedule_timer_task(timer_task, delay);
+}
+
+void ChibiUtil::remove_timer_task(AP_HAL::Thread* thd, TimerTask* timer_task)
+{
+    ((ChibiOS::Thread*)thd)->remove_timer_task(timer_task);
+}
+
+EventTask *create_event_task(TaskProc task_func, void* ctx)
+{
+    EventTask* new_event = new EventTask;
+    new_event->task_func = task_func;
+    new_event->ctx = ctx;
+    return new_event;
+}
+
+void send_event(AP_HAL::Thread* thd, EventTask* event_task)
+{
+    ((ChibiOS::Thread*)thd)->send_event(task);
+}
+
 #endif //CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS

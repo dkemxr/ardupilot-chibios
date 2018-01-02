@@ -31,7 +31,7 @@ public:
     AP_HAL::DigitalSource* channel(uint16_t n);
 
     /* Interrupt interface: */
-    bool    attach_interrupt(uint8_t interrupt_num, AP_HAL::Proc p,
+    bool    attach_interrupt(uint8_t interrupt_num, AP_HAL::Thread* thread, EventTask* task,
             uint8_t mode);
 
     /* return true if USB cable is connected */

@@ -34,7 +34,11 @@ static const uint8_t num_leds = 4;
 
 static void ext_interrupt_cb(EXTDriver *extp, expchannel_t channel);
 
-static AP_HAL::Proc ext_irq[22]; // ext int irq list
+struct ext_irq_s {
+    Thread* thd;
+    EventTask* evt;
+} ext_irq[22]; // ext int irq list
+
 static EXTConfig extcfg = {
   {
     {EXT_CH_MODE_DISABLED, NULL},
@@ -138,7 +142,7 @@ AP_HAL::DigitalSource* ChibiGPIO::channel(uint16_t n) {
 }
 
 /* Interrupt interface: */
-bool ChibiGPIO::attach_interrupt(uint8_t interrupt_num, AP_HAL::Proc p, uint8_t mode) {
+bool ChibiGPIO::attach_interrupt(uint8_t interrupt_num, AP_HAL::Thread* thread, EventTask* event, uint8_t mode) {
     extStop(&EXTD1);
     switch(mode) {
         case HAL_GPIO_INTERRUPT_LOW:
@@ -156,7 +160,8 @@ bool ChibiGPIO::attach_interrupt(uint8_t interrupt_num, AP_HAL::Proc p, uint8_t 
         default: return false;
     }
     extcfg.channels[interrupt_num].mode |= EXT_CH_MODE_AUTOSTART | irq_port_list[interrupt_num];
-    ext_irq[interrupt_num] = p;
+    ext_irq[interrupt_num].thread = thread;
+    ext_irq[interrupt_num].event = event;
     extcfg.channels[interrupt_num].cb = ext_interrupt_cb;
     extStart(&EXTD1, &extcfg);
     return true;
@@ -187,8 +192,8 @@ void ChibiDigitalSource::toggle() {
 }
 
 void ext_interrupt_cb(EXTDriver *extp, expchannel_t channel) {
-    if (ext_irq[channel] != nullptr) {
-        ext_irq[channel]();
+    if (ext_irq[channel].thread != nullptr) {
+        ext_irq[channel].thread->send_event_from_irq(ext_irq[channel].event);
     }
 }
 #endif //HAL_BOARD_ChibiOS

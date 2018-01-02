@@ -19,4 +19,9 @@ namespace ChibiOS {
     class ChibiStorage;
     class ChibiUARTDriver;
     class ChibiUtil;
+    class Thread;
 }
+
+using TimerTask = AP_HAL::TimerTask;
+using EventTask = AP_HAL::EventTask;
+using TaskProc = AP_HAL::TaskProc;
