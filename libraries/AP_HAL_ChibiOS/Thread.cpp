@@ -48,12 +48,14 @@ void ChibiOS::Thread::start(size_t stack_size)
 //granularity of time is dependent on CH_CFG_ST_FREQUENCY
 AP_HAL::TimerTask* ChibiOS::Thread::add_timer_task(TaskProc task_func, uint32_t timer_expiration, bool auto_repeat, void *ctx)
 {
-    chSysLock();
     TimerTask* task = _init_timer_task(chVTGetSystemTimeX(), US2ST(timer_expiration), auto_repeat, task_func, ctx);
+    chSysLock();
     _insert_timer_task(task);
 
     // Wake thread to process added task
     chThdResumeI(&_thd, MSG_TIMEOUT);
+    //Safeguard against waking higher priority thread from lower
+    chSchRescheduleS();
     chSysUnlock();
     return task;
 }
@@ -72,6 +74,8 @@ void ChibiOS::Thread::reschedule_timer_task(TimerTask* task, uint32_t timer_expi
 
     // Wake worker thread to process tasks
     chThdResumeI(&_thd, MSG_TIMEOUT);
+    //Safeguard against waking higher priority thread from lower
+    chSchRescheduleS();
     chSysUnlock();
 }
 
@@ -168,7 +172,7 @@ void ChibiOS::Thread::_run()
         uint64_t tnow_ticks = chVTGetSystemTimeX();
         uint64_t ticks_to_next_timer_task = _get_ticks_to_timer_task(_timer_task_list_head, tnow_ticks);
         while(_event_task_list_head) {
-            _event_task_list_head->task_func(_event_task_list_head->ctx);
+            _event_task_list_head->task_func();
             _event_task_list_head = _event_task_list_head->next;
         }
         if (ticks_to_next_timer_task == TIME_IMMEDIATE) {
@@ -179,7 +183,7 @@ void ChibiOS::Thread::_run()
             chSysUnlock();
 
             // Perform task
-            next_timer_task->task_func(next_timer_task->ctx);
+            next_timer_task->task_func();
             next_timer_task->timer_begin_systime = tnow_ticks;
 
             if (next_timer_task->auto_repeat) {
@@ -211,12 +215,18 @@ void ChibiOS::Thread::send_event_from_irq(EventTask* evt)
 {
     _insert_event_task(evt);
     if (_is_sleeping) {
+        chSysLockFromISR();
         chThdResumeI(&_thd, (msg_t)evt);
+        chSysUnlockFromISR();
     }
 }
 
 void ChibiOS::Thread::send_event(EventTask* evt)
 {
+    chSysLock();
     _insert_event_task(evt);
-    chThdResume(&_thd, (msg_t)evt);
+    chThdResumeI(&_thd, (msg_t)evt);
+    //Safeguard against waking higher priority thread from lower
+    chSchRescheduleS();
+    chSysUnlock();
 }

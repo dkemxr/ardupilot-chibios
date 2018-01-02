@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AP_HAL_ChibiOS.h"
-
+#include "Thread.h"
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
  # define HAL_GPIO_A_LED_PIN        0
  # define HAL_GPIO_B_LED_PIN        0

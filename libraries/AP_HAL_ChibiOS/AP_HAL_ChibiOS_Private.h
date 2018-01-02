@@ -7,6 +7,7 @@
 #include "AnalogIn.h"
 #include "GPIO.h"
 #include "Scheduler.h"
+#include "Thread.h"
 #include "Util.h"
 #include "UARTDriver.h"
 #include "SPIDevice.h"

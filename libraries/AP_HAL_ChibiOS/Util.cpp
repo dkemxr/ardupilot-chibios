@@ -9,6 +9,7 @@ extern AP_IOMCU iomcu;
 #endif
 
 using namespace ChibiOS;
+
 /**
    how much free memory do we have in bytes.
 */
@@ -40,7 +41,7 @@ AP_HAL::Thread *ChibiUtil::create_thread(const char *name, int policy, int prior
 {
     ChibiOS::Thread* new_thd = new ChibiOS::Thread;
     new_thd->init(name, priority);
-    new_thd->start_thread(stack_size);
+    new_thd->start(stack_size);
     return (AP_HAL::Thread*)new_thd;
 }
 
@@ -59,7 +60,7 @@ void ChibiUtil::remove_timer_task(AP_HAL::Thread* thd, TimerTask* timer_task)
     ((ChibiOS::Thread*)thd)->remove_timer_task(timer_task);
 }
 
-EventTask *create_event_task(TaskProc task_func, void* ctx)
+EventTask* ChibiUtil::create_event_task(TaskProc task_func, void* ctx)
 {
     EventTask* new_event = new EventTask;
     new_event->task_func = task_func;
@@ -67,9 +68,9 @@ EventTask *create_event_task(TaskProc task_func, void* ctx)
     return new_event;
 }
 
-void send_event(AP_HAL::Thread* thd, EventTask* event_task)
+void ChibiUtil::send_event(AP_HAL::Thread* thd, EventTask* event_task)
 {
-    ((ChibiOS::Thread*)thd)->send_event(task);
+    ((ChibiOS::Thread*)thd)->send_event(event_task);
 }
 
 #endif //CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS

@@ -35,8 +35,8 @@ static const uint8_t num_leds = 4;
 static void ext_interrupt_cb(EXTDriver *extp, expchannel_t channel);
 
 struct ext_irq_s {
-    Thread* thd;
-    EventTask* evt;
+    ChibiOS::Thread* thread;
+    EventTask* event;
 } ext_irq[22]; // ext int irq list
 
 static EXTConfig extcfg = {
@@ -160,7 +160,7 @@ bool ChibiGPIO::attach_interrupt(uint8_t interrupt_num, AP_HAL::Thread* thread, 
         default: return false;
     }
     extcfg.channels[interrupt_num].mode |= EXT_CH_MODE_AUTOSTART | irq_port_list[interrupt_num];
-    ext_irq[interrupt_num].thread = thread;
+    ext_irq[interrupt_num].thread = (ChibiOS::Thread*)thread;
     ext_irq[interrupt_num].event = event;
     extcfg.channels[interrupt_num].cb = ext_interrupt_cb;
     extStart(&EXTD1, &extcfg);
