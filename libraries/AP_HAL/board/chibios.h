@@ -55,6 +55,8 @@
 // enable RAMTROM parameter storage
 #define HAL_WITH_RAMTRON 1
 
+#define CCM_RAM_ATTRIBUTE __attribute__((section(".ccm")))
+
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_CHIBIOS_SKYVIPER_V2450
 #define HAL_INS_DEFAULT HAL_INS_MPU60XX_SPI
 #define HAL_INS_DEFAULT_ROTATION ROTATION_ROLL_180
@@ -72,6 +74,8 @@
 
 #define STORAGE_FLASH_PAGE		22
 #define HAL_STORAGE_SIZE        16384
+
+#define CCM_RAM_ATTRIBUTE __attribute__((section(".ccm")))
 
 #elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_CHIBIOS_PIXHAWK1
 #define HAL_INS_DEFAULT HAL_INS_PIXHAWK1
@@ -97,6 +101,7 @@
 // enable RAMTROM parameter storage
 #define HAL_WITH_RAMTRON 1
 
+#define CCM_RAM_ATTRIBUTE __attribute__((section(".ram4")))
 #endif
 
 #define HAL_STORAGE_SIZE_AVAILABLE  HAL_STORAGE_SIZE

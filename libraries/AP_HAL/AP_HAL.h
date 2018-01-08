@@ -32,3 +32,7 @@
 #include "HAL.h"
 
 #include "system.h"
+
+#ifndef CCM_RAM_ATTRIBUTE
+#define CCM_RAM_ATTRIBUTE //this is to be defined if certain sections need to be assigned special RAM portions
+#endif
