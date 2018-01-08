@@ -5,6 +5,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
 #include <DataFlash/DataFlash.h>
+#include <new>
 
 /*
   parameter defaults for different types of vehicle. The
@@ -661,12 +662,16 @@ bool NavEKF2::InitialiseFilter(void)
             _enable.set(0);
             return false;
         }
-        
-        core = new NavEKF2_core[num_cores];
+
+        core = (NavEKF2_core*)hal.util->alloc_from_ccm_ram(sizeof(NavEKF2_core)*num_cores);
         if (core == nullptr) {
             _enable.set(0);
             gcs().send_text(MAV_SEVERITY_CRITICAL, "NavEKF2: allocation failed");
             return false;
+        }
+        for (uint8_t i = 0; i < num_cores; i++) {
+            //Call Constructors
+            new (core + (sizeof(NavEKF2_core)*i)) NavEKF2_core();
         }
 
         // set the IMU index for the cores
