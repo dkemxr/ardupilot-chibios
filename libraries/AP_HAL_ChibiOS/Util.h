@@ -16,6 +16,8 @@ public:
      */
     enum safety_state safety_switch_state(void) override;
 
+    void* alloc_from_ccm_ram(size_t size);
+
     //Thread Interface
     AP_HAL::Thread* create_thread(const char *name, int policy, int priority, size_t stack_size, void* ctx) override;
     TimerTask *add_timer_task(AP_HAL::Thread* thd, TaskProc task_func, uint32_t delay, bool repeat, void* ctx) override;

@@ -9,7 +9,10 @@ extern AP_IOMCU iomcu;
 #endif
 
 using namespace ChibiOS;
+//32K CCM RAM Heap
+CCM_RAM_ATTRIBUTE CH_HEAP_AREA(ccm_heap_region, 32*1024);
 
+static memory_heap_t *ccm_heap = nullptr;
 /**
    how much free memory do we have in bytes.
 */
@@ -23,6 +26,18 @@ uint32_t ChibiUtil::available_memory(void)
     totalp += chCoreGetStatusX();
 
     return totalp;
+}
+
+/*
+    CCM RAM Region heap Allocations
+*/
+void* ChibiUtil::alloc_from_ccm_ram(size_t size)
+{
+    if (ccm_heap == nullptr) {
+        //initialize ccm heap
+        chHeapObjectInit(ccm_heap, ccm_heap_region, 32*1024);
+    }
+    return chHeapAllocAligned(NULL, size, CH_HEAP_ALIGNMENT);
 }
 
 /*
