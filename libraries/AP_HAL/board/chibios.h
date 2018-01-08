@@ -73,6 +73,8 @@
 // enable FAT filesystem
 #define HAL_OS_FATFS_IO 1
 
+#define CCM_RAM_ATTRIBUTE __attribute__((section(".ram4")))
+
 #endif // CONFIG_HAL_BOARD_SUBTYPE
 
 #define HAL_STORAGE_SIZE_AVAILABLE  HAL_STORAGE_SIZE
