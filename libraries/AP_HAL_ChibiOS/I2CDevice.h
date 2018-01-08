@@ -13,7 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * Modified for use in AP_HAL_ChibiOS by Andrew Tridgell and Siddharth Bharat Purohit
  */
+
 #pragma once
 
 #include <inttypes.h>
