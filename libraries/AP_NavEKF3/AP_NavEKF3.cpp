@@ -5,6 +5,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
 #include <DataFlash/DataFlash.h>
+#include <new>
 
 /*
   parameter defaults for different types of vehicle. The
@@ -691,21 +692,24 @@ bool NavEKF3::InitialiseFilter(void)
             }
         }
 
-        // check if there is enough memory to create the EKF cores
-        if (hal.util->available_memory() < sizeof(NavEKF3_core)*num_cores + 4096) {
+        if (hal.util->available_memory(AP_HAL::Util::MEM_FAST) < sizeof(NavEKF3_core)*num_cores + 4096) {
+            //CCM RAM not supported or full
             gcs().send_text(MAV_SEVERITY_CRITICAL, "NavEKF3: not enough memory");
             _enable.set(0);
             return false;
         }
-        
-        // create the cores
-        core = new NavEKF3_core[num_cores];
-        if (core == nullptr) {
+
+        //try to allocate from CCM RAM, fallback to Normal RAM if not available or full
+        core = (NavEKF3_core*)hal.util->malloc_type(sizeof(NavEKF3_core)*num_cores, AP_HAL::Util::MEM_FAST);
+            if (core == nullptr) {
             _enable.set(0);
             gcs().send_text(MAV_SEVERITY_CRITICAL, "NavEKF3: allocation failed");
             return false;
         }
-
+        for (uint8_t i = 0; i < num_cores; i++) {
+            //Call Constructors
+            new (&core[i]) NavEKF3_core();
+        }
     }
 
     // Set up any cores that have been created
