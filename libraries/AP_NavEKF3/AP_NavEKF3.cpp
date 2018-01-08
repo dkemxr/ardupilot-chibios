@@ -5,6 +5,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
 #include <DataFlash/DataFlash.h>
+#include <new>
 
 /*
   parameter defaults for different types of vehicle. The
@@ -699,13 +700,16 @@ bool NavEKF3::InitialiseFilter(void)
         }
         
         // create the cores
-        core = new NavEKF3_core[num_cores];
+        core = (NavEKF3_core*)hal.util->alloc_from_ccm_ram(sizeof(NavEKF3_core)*num_cores);
         if (core == nullptr) {
             _enable.set(0);
             gcs().send_text(MAV_SEVERITY_CRITICAL, "NavEKF3: allocation failed");
             return false;
         }
-
+        for (uint8_t i = 0; i < num_cores; i++) {
+            //Call Constructors
+            new (core + (sizeof(NavEKF3_core)*i)) NavEKF3_core();
+        }
     }
 
     // Set up any cores that have been created
