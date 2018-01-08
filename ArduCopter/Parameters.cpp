@@ -28,7 +28,7 @@
 #define GOBJECTVARPTR(v, name, var_info_ptr) { AP_PARAM_GROUP, name, Parameters::k_param_ ## v, (const void *)&copter.v, {group_info_ptr : var_info_ptr}, AP_PARAM_FLAG_POINTER | AP_PARAM_FLAG_INFO_POINTER }
 #define GOBJECTN(v, pname, name, class) { AP_PARAM_GROUP, name, Parameters::k_param_ ## pname, (const void *)&copter.v, {group_info : class::var_info} }
 
-const AP_Param::Info Copter::var_info[] = {
+CCM_RAM_ATTRIBUTE const AP_Param::Info Copter::var_info[] = {
     // @Param: SYSID_SW_MREV
     // @DisplayName: Eeprom format version number
     // @Description: This value is incremented when changes are made to the eeprom format
@@ -900,7 +900,7 @@ const AP_Param::Info Copter::var_info[] = {
 /*
   2nd group of parameters
  */
-const AP_Param::GroupInfo ParametersG2::var_info[] = {
+CCM_RAM_ATTRIBUTE const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // @Param: WP_NAVALT_MIN
     // @DisplayName: Minimum navigation altitude
@@ -1067,7 +1067,7 @@ ParametersG2::ParametersG2(void)
   The second column below is the index in the var_info[] table for the
   old object. This should be zero for top level parameters.
  */
-const AP_Param::ConversionInfo conversion_table[] = {
+CCM_RAM_ATTRIBUTE const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_battery_monitoring, 0,      AP_PARAM_INT8,  "BATT_MONITOR" },
     { Parameters::k_param_battery_volt_pin,   0,      AP_PARAM_INT8,  "BATT_VOLT_PIN" },
     { Parameters::k_param_battery_curr_pin,   0,      AP_PARAM_INT8,  "BATT_CURR_PIN" },
