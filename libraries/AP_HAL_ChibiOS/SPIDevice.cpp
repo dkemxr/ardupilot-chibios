@@ -16,6 +16,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/utility/OwnPtr.h>
+#include "Util.h"
 #include "Scheduler.h"
 #include "Semaphores.h"
 #include <stdio.h>
@@ -263,7 +264,7 @@ bool SPIDevice::transfer(const uint8_t *send, uint32_t send_len,
     uint32_t buf_aligned[1+((send_len+recv_len)/4)];
     uint8_t *buf;
     bool allocated = false;
-    if (hal.util->is_memory_dma_safe(buf_aligned)) {
+    if (ChibiUtil::is_memory_dma_safe(buf_aligned)) {
         buf = (uint8_t *)&buf_aligned[0];
     } else {
         buf = new uint8_t[sizeof(buf_aligned)];

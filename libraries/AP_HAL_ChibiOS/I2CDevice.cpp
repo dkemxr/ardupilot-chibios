@@ -133,7 +133,7 @@ bool I2CDevice::_transfer(const uint8_t *send, uint32_t send_len,
     uint8_t *send_buf = nullptr;
     bool send_allocated = false, recv_allocated = false;
     bool success = false;
-    if(hal.util->is_memory_dma_safe(send) && hal.util->is_memory_dma_safe(recv)) {
+    if(ChibiUtil::is_memory_dma_safe(send) && ChibiUtil::is_memory_dma_safe(recv)) {
         recv_buf = recv;
         send_buf = (uint8_t*)send;
     } else {
