@@ -28,6 +28,14 @@ extern AP_IOMCU iomcu;
 #endif
 
 using namespace ChibiOS;
+
+#ifdef CCM_RAM_ATTRIBUTE
+//CCM RAM Heap
+#define CCM_REGION_SIZE 60*1024
+CH_HEAP_AREA(ccm_heap_region, CCM_REGION_SIZE) CCM_RAM_ATTRIBUTE;
+static memory_heap_t ccm_heap;
+static bool ccm_heap_initialised = false;
+#endif
 /**
    how much free memory do we have in bytes.
 */
@@ -41,6 +49,69 @@ uint32_t ChibiUtil::available_memory(void)
     totalp += chCoreGetStatusX();
 
     return totalp;
+}
+
+/*
+    Special Allocation Routines
+*/
+
+void* ChibiUtil::malloc_type(size_t size, AP_HAL::Util::Memory_Type mem_type)
+{
+    if (mem_type == AP_HAL::Util::MEM_FAST) {
+        return try_alloc_from_ccm_ram(size);
+    } else {
+        return malloc(size);
+    }
+}
+
+void ChibiUtil::free_type(void *ptr, size_t size, AP_HAL::Util::Memory_Type mem_type)
+{
+    if (ptr != NULL) {
+        chHeapFree(ptr);
+    }
+}
+
+
+void* ChibiUtil::try_alloc_from_ccm_ram(size_t size)
+{
+    void* ret = nullptr;
+    if (available_memory_in_ccm_ram() > 0) { 
+        ret = chHeapAllocAligned(&ccm_heap, size, CH_HEAP_ALIGNMENT);
+        if (ret == nullptr) {
+            //we failed to allocate from CCM so we are going to try common SRAM
+            return malloc(size);
+        }
+        return ret;
+    }
+    return malloc(size);
+}
+uint32_t ChibiUtil::available_memory(AP_HAL::Util::Memory_Type mem_type)
+{
+    if (mem_type == AP_HAL::Util::MEM_FAST) {
+        //return whichever is greater all we need is to check if we can allocate with mem_type MEM_FAST
+        return (available_memory_in_ccm_ram() > available_memory()) ? available_memory_in_ccm_ram() : available_memory();
+    } else {
+        return available_memory();
+    }
+}
+
+uint32_t ChibiUtil::available_memory_in_ccm_ram(void)
+{
+#ifdef CCM_RAM_ATTRIBUTE
+    if (!ccm_heap_initialised) {
+        //zero the memory region
+        memset(ccm_heap_region, 0, CCM_REGION_SIZE);
+        //initialize ccm heap
+        chHeapObjectInit(&ccm_heap, ccm_heap_region, CCM_REGION_SIZE);
+        ccm_heap_initialised = true;
+    }
+    size_t totalp = 0;
+    // get memory available on heap
+    chHeapStatus(&ccm_heap, &totalp, nullptr);
+    return totalp;
+#else
+    return 0;
+#endif
 }
 
 /*

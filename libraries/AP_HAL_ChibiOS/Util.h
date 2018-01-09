@@ -25,6 +25,12 @@ public:
     bool run_debug_shell(AP_HAL::BetterStream *stream) { return false; }
     AP_HAL::Semaphore *new_semaphore(void) override { return new ChibiOS::Semaphore; }
     uint32_t available_memory() override;
+    uint32_t available_memory(AP_HAL::Util::Memory_Type mem_type) override;
+
+    // Special Allocation Routines
+    void *malloc_type(size_t size, AP_HAL::Util::Memory_Type mem_type);
+    void free_type(void *ptr, size_t size, AP_HAL::Util::Memory_Type mem_type);
+    static bool is_memory_dma_safe(const void* address);
 
     /*
       return state of safety switch, if applicable
@@ -36,6 +42,8 @@ public:
     void set_imu_target_temp(int8_t *target);
 
 private:
+    void* try_alloc_from_ccm_ram(size_t size);
+    uint32_t available_memory_in_ccm_ram(void);
 
 #if HAL_WITH_IO_MCU && HAL_HAVE_IMU_HEATER
     struct {
