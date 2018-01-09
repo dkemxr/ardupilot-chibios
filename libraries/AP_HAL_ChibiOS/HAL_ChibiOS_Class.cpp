@@ -103,7 +103,7 @@ thread_t* get_main_thread()
 }
 
 static AP_HAL::HAL::Callbacks* g_callbacks;
-THD_WORKING_AREA(_main_thread_wa, APM_MAIN_THREAD_STACK_SIZE);
+THD_WORKING_AREA(_main_thread_wa, APM_MAIN_THREAD_STACK_SIZE) CCM_RAM_ATTRIBUTE;
 static THD_FUNCTION(main_loop,arg)
 {
     daemon_task = chThdGetSelfX();

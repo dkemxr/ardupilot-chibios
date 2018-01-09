@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 using namespace ChibiOS;
+extern const AP_HAL::HAL& hal;
 
 #if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_CHIBIOS_SKYVIPER_F412
 #define SPI_BUS_FLOW  1
@@ -260,7 +261,14 @@ bool SPIDevice::transfer(const uint8_t *send, uint32_t send_len,
         return true;
     }
     uint32_t buf_aligned[1+((send_len+recv_len)/4)];
-    uint8_t *buf = (uint8_t *)&buf_aligned[0];
+    uint8_t *buf;
+    bool allocated = false;
+    if (hal.util->is_memory_dma_safe(buf_aligned)) {
+        buf = (uint8_t *)&buf_aligned[0];
+    } else {
+        buf = new uint8_t[sizeof(buf_aligned)];
+        allocated = true;
+    }
     if (send_len > 0) {
         memcpy(buf, send, send_len);
     }
@@ -270,6 +278,9 @@ bool SPIDevice::transfer(const uint8_t *send, uint32_t send_len,
     do_transfer((uint8_t *)buf, (uint8_t *)buf, send_len+recv_len);
     if (recv_len > 0) {
         memcpy(recv, &buf[send_len], recv_len);
+    }
+    if (allocated) {
+        delete[] buf;
     }
     return true;
 }

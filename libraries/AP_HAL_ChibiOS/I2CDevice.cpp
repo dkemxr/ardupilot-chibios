@@ -38,6 +38,7 @@ static uint8_t rx_dma_stream[] = {
 };
 
 using namespace ChibiOS;
+extern const AP_HAL::HAL& hal;
 
 DeviceBus I2CDevice::businfo[I2CDevice::num_buses];
 
@@ -128,6 +129,33 @@ bool I2CDevice::_transfer(const uint8_t *send, uint32_t send_len,
                          uint8_t *recv, uint32_t recv_len)
 {
     int ret;
+    uint8_t *recv_buf = nullptr;
+    uint8_t *send_buf = nullptr;
+    bool send_allocated = false, recv_allocated = false;
+    bool success = false;
+    if(hal.util->is_memory_dma_safe(send) && hal.util->is_memory_dma_safe(recv)) {
+        recv_buf = recv;
+        send_buf = (uint8_t*)send;
+    } else {
+        //allocate a buffer to bounce off of
+        recv_buf = new uint8_t[recv_len];
+        if (recv_buf) {
+            recv_allocated = true;
+        } else {
+            goto end;
+        }
+        if (send_len > 0) {
+            send_buf = new uint8_t[send_len];
+            if (send_buf) {
+                send_allocated = true;
+            } else {
+                goto end;
+            }
+            memcpy(send_buf, send, send_len);
+            send_allocated = true;
+        }
+    }
+
     for(uint8_t i=0 ; i <= _retries; i++) {
         i2cAcquireBus(I2CD[_busnum]);
         // calculate a timeout as twice the expected transfer time, and set as min of 4ms
@@ -146,10 +174,19 @@ bool I2CDevice::_transfer(const uint8_t *send, uint32_t send_len,
             i2cStop(I2CD[_busnum]);
             i2cStart(I2CD[_busnum], &i2ccfg);
         } else {
-            return true;
+            memcpy(recv, recv_buf, recv_len);
+            success = true;
+            break;
         }
     }
-    return false;
+end:
+    if (send_allocated) {
+        delete[] send_buf;
+        }
+    if (recv_allocated) {
+        delete[] recv_buf;
+    }
+    return success;
 }
 
 bool I2CDevice::read_registers_multiple(uint8_t first_reg, uint8_t *recv,

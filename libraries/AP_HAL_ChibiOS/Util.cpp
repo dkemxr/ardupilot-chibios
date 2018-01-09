@@ -28,10 +28,11 @@ extern AP_IOMCU iomcu;
 #endif
 
 using namespace ChibiOS;
+extern uint32_t __ram0_start__, __ram0_end__;
 
 #ifdef CCM_RAM_ATTRIBUTE
 //CCM RAM Heap
-#define CCM_REGION_SIZE 60*1024
+#define CCM_REGION_SIZE 50*1024
 CH_HEAP_AREA(ccm_heap_region, CCM_REGION_SIZE) CCM_RAM_ATTRIBUTE;
 static memory_heap_t ccm_heap;
 static bool ccm_heap_initialised = false;
@@ -112,6 +113,15 @@ uint32_t ChibiUtil::available_memory_in_ccm_ram(void)
 #else
     return 0;
 #endif
+}
+
+bool ChibiUtil::is_memory_dma_safe(const void* address)
+{
+    //Check if address falls under common RAM region
+    if ((uint32_t)address > (uint32_t)&__ram0_start__ && (uint32_t)address < (uint32_t)&__ram0_end__) {
+        return true;
+    }
+    return false;
 }
 
 /*
